@@ -1,0 +1,250 @@
+﻿country_code,country,fb_country
+AF,Afghanistan,Afghanistan
+AX,AX,Other
+AL,Albania,Albania
+DZ,Algeria,Algeria
+AS,American Samoa,American Samoa
+AD,Andorra,Andorra
+AO,Angola,Angola
+AI,Anguilla,Anguilla
+AQ,Antarctica,Other
+AG,Antigua and Barbuda,Antigua & Barbuda
+AR,Argentina,Argentina
+AM,Armenia,Armenia
+AW,Aruba,Aruba
+AU,Australia,Australia
+AT,Austria,Austria
+AZ,Azerbaijan,Azerbaijan
+BS,Bahamas,Bahamas
+BH,Bahrain,Bahrain
+BD,Bangladesh,Bangladesh
+BB,Barbados,Barbados
+BY,Belarus,Belarus
+BE,Belgium,Belgium
+BZ,Belize,Belize
+BJ,Benin,Benin
+BM,Bermuda,Other
+BT,Bhutan,Other
+BO,Bolivia,Bolivia
+BQ,Bonaire= Sint Eustatius and Saba,Other
+BA,Bosnia and Herzegovina,Bosnia & Herzegovina
+BW,Botswana,Botswana
+BV,Bouvet Island,Other
+BR,Brazil,Brazil
+IO,British Indian Ocean Territory,Other
+BN,Brunei Darussalam,Other
+BG,Bulgaria,Bulgaria
+BF,Burkina Faso,Burkina Faso
+BI,Burundi,Other
+KH,Cambodia,Cambodia
+CM,Cameroon,Cameroon
+CA,Canada,Canada
+CV,Cape Verde,Cape Verde
+KY,Cayman Islands,Cayman Islands
+CF,Central African Republic,Central African Republic
+TD,Chad,Chad
+CL,Chile,Chile
+CN,China,China
+CX,Christmas Island,Other
+CC,Cocos (Keeling) Islands,Other
+CO,Colombia,Colombia
+KM,Comoros,Other
+CG,Congo,Congo - Kinshasa
+CD,"Congo, the Democratic Republic of the",Other
+CK,Cook Islands,Cook Islands
+CR,Costa Rica,Costa Rica
+CI,C?te d'Ivoire,C?te d?Ivoire
+HR,Croatia,Croatia
+CU,Cuba,Other
+CW,Cura?ao,Cura?ao
+CY,Cyprus,Cyprus
+CZ,Czech Republic,Czechia
+DK,Denmark,Denmark
+DJ,Djibouti,Djibouti
+DM,Dominica,Dominica
+DO,Dominican Republic,Dominican Republic
+EC,Ecuador,Ecuador
+EG,Egypt,Egypt
+SV,El Salvador,El Salvador
+GQ,Equatorial Guinea,Other
+ER,Eritrea,Other
+EE,Estonia,Estonia
+ET,Ethiopia,Ethiopia
+FK,Falkland Islands (Malvinas),Other
+FO,Faroe Islands,Faroe Islands
+FJ,Fiji,Fiji
+FI,Finland,Finland
+FR,France,France
+GF,French Guiana,French Guiana
+PF,French Polynesia,French Polynesia
+TF,French Southern Territories,Other
+GA,Gabon,Gabon
+GM,Gambia,Other
+GE,Georgia,Georgia
+DE,Germany,Germany
+GH,Ghana,Ghana
+GI,Gibraltar,Gibraltar
+GR,Greece,Greece
+GL,Greenland,Greenland
+GD,Grenada,Grenada
+GP,Guadeloupe,Guadeloupe
+GU,Guam,Guam
+GT,Guatemala,Guatemala
+GG,Guernsey,Other
+GN,Guinea,Guinea
+GW,Guinea-Bissau,Other
+GY,Guyana,Guyana
+HT,Haiti,Haiti
+HM,Heard Island and McDonald Islands,Other
+VA,Holy See (Vatican City State),Other
+HN,Honduras,Honduras
+HK,Hong Kong,Hong Kong
+HU,Hungary,Hungary
+IS,Iceland,Iceland
+IN,India,India
+ID,Indonesia,Indonesia
+IR,Iran,Iran
+IQ,Iraq,Iraq
+IE,Ireland,Ireland
+IM,Isle of Man,Other
+IL,Israel,Israel
+IT,Italy,Italy
+JM,Jamaica,Jamaica
+JP,Japan,Japan
+JE,Jersey,Other
+JO,Jordan,Jordan
+KZ,Kazakhstan,Kazakhstan
+KE,Kenya,Kenya
+KI,Kiribati,Other
+KP,"Korea, Democratic People's Republic of",Other
+KR,"Korea, Republic of (South Korea)",South Korea
+KW,Kuwait,Kuwait
+KG,Kyrgyzstan,Kyrgyzstan
+LA,Lao People's Democratic Republic,Laos
+LV,Latvia,Latvia
+LB,Lebanon,Lebanon
+LS,Lesotho,Other
+LR,Liberia,Liberia
+LY,Libyan Arab Jamahiriya,Libya
+LI,Liechtenstein,Other
+LT,Lithuania,Lithuania
+LU,Luxembourg,Luxembourg
+MO,Macao,Macao
+MK,"Macedonia, the former Yugoslav Republic of",North Macedonia
+MG,Madagascar,Madagascar
+MW,Malawi,Other
+MY,Malaysia,Malaysia
+MV,Maldives,Maldives
+ML,Mali,Mali
+MT,Malta,Malta
+MH,Marshall Islands,Marshall Islands
+MQ,Martinique,Martinique
+MR,Mauritania,Mauritania
+MU,Mauritius,Mauritius
+YT,Mayotte,Mayotte
+MX,Mexico,Mexico
+FM,"Micronesia, Federated States of",Micronesia
+MD,"Moldova, Republic of",Moldova
+MC,Monaco,Monaco
+MN,Mongolia,Other
+ME,Montenegro,Other
+MS,Montserrat,Other
+MA,Morocco,Morocco
+MZ,Mozambique,Mozambique
+MM,Myanmar,Myanmar (Burma)
+NA,Namibia,Namibia
+NR,Nauru,Other
+NP,Nepal,Nepal
+NL,Netherlands,Netherlands
+NC,New Caledonia,New Caledonia
+NZ,New Zealand,New Zealand
+NI,Nicaragua,Nicaragua
+NE,Niger,Niger
+NG,Nigeria,Nigeria
+NU,Niue,Other
+NF,Norfolk Island,Norfolk Island
+MP,Northern Mariana Islands,Northern Mariana Islands
+NO,Norway,Norway
+OM,Oman,Oman
+PK,Pakistan,Pakistan
+PW,Palau,Other
+PS,"Palestinian Territory, Occupied",Palestine
+PA,Panama,Panama
+PG,Papua New Guinea,Papua New Guinea
+PY,Paraguay,Paraguay
+PE,Peru,Peru
+PH,Philippines,Philippines
+PN,Pitcairn,Other
+PL,Poland,Poland
+PT,Portugal,Portugal
+PR,Puerto Rico,Puerto Rico
+QA,Qatar,Qatar
+RE,Reunion,R?union
+RO,Romania,Romania
+RU,Russia,Russia
+RW,Rwanda,Other
+BL,Saint Barth?lemy,Other
+SH,"Saint Helena, Ascension and Tristan da Cunha",Other
+KN,Saint Kitts and Nevis,Other
+LC,Saint Lucia,Other
+MF,Saint Martin,St. Martin
+PM,Saint Pierre and Miquelon,Other
+VC,Saint Vincent and the Grenadines,St. Vincent & Grenadines
+WS,Samoa,Samoa
+SM,San Marino,Other
+ST,Sao Tome and Principe,Other
+SA,Saudi Arabia,Saudi Arabia
+SN,Senegal,Senegal
+RS,Serbia,Serbia
+SC,Seychelles,Seychelles
+SL,Sierra Leone,Other
+SG,Singapore,Singapore
+SX,Sint Maarten,Sint Maarten
+SK,Slovakia,Slovakia
+SI,Slovenia,Slovenia
+SB,Solomon Islands,Solomon Islands
+SO,Somalia,Somalia
+ZA,South Africa,South Africa
+GS,South Georgia and the South Sandwich Islands,Other
+SS,Sudan,South Sudan
+ES,Spain,Spain
+LK,Sri Lanka,Sri Lanka
+SD,Sudan,Other
+SR,Suriname,Suriname
+SJ,Svalbard and Jan Mayen,Svalbard & Jan Mayen
+SZ,Swaziland,Other
+SE,Sweden,Sweden
+CH,Switzerland,Switzerland
+SY,Syrian Arab Republic,Syria
+TW,Taiwan,Taiwan
+TJ,Tajikistan,Tajikistan
+TZ,"Tanzania, United Republic of",Tanzania
+TH,Thailand,Thailand
+TL,Timor-Leste,Timor-Leste
+TG,Togo,Other
+TK,Tokelau,Other
+TO,Tonga,Other
+TT,Trinidad and Tobago,Trinidad & Tobago
+TN,Tunisia,Tunisia
+TR,Turkey,Turkey
+TM,Turkmenistan,Turkmenistan
+TC,Turks and Caicos,Turks & Caicos Islands
+TV,Tuvalu,Other
+UG,Uganda,Uganda
+UA,Ukraine,Ukraine
+AE,United Arab Emirates,United Arab Emirates
+GB,United Kingdom,United Kingdom
+US,United States Of America,United States
+UM,United States Minor Outlying Islands,Other
+UY,Uruguay,Uruguay
+UZ,Uzbekistan,Uzbekistan
+VU,Vanuatu,Other
+VE,Venezuela,Venezuela
+VN,Vietnam,Vietnam
+VG,"Virgin Islands, British",British Virgin Islands
+VI,"Virgin Islands, U.S.",U.S. Virgin Islands
+WF,Wallis and Futuna,Other
+EH,Western Sahara,Other
+YE,Yemen,Yemen
+ZM,Zambia,Zambia
+ZW,Zimbabwe,Zimbabwe
