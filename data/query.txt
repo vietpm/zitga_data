@@ -1,0 +1,1473 @@
+Q1, SQL All
+
+----------------------------------------ingame
+--SL
+
+INSERT INTO TABLE default.vietpm_sl_ingame_fact PARTITION(event_date)
+SELECT app_id,
+       platform,
+       cast(substr(stage_name, 2, 2) AS float) AS stage,
+       stage_name % 100 AS level,
+       stage_name div 10000 AS mode,
+                      sum(CASE
+                              WHEN win = 'True' THEN 1
+                              ELSE 0
+                          END) AS win_count,
+                      count(*) AS play_count,
+                      event_date
+FROM default.bigquery_stage_end
+WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+  AND app_id IN ('com.zitga.ninja.stickman.legends',
+                 'com.zitga.ninja.stickman.legends.shadow.wars')
+GROUP BY app_id,
+         platform,
+         stage_name div 10000,
+                        cast(substr(stage_name, 2, 2) AS float),
+                        stage_name % 100,
+                        event_date
+ORDER BY event_date,
+         app_id,
+         platform,
+         stage,
+         level,
+         mode;
+
+--TD
+
+INSERT INTO TABLE empire_warriors_td.vietpm_td_ingame_fact PARTITION(event_date)
+SELECT app_id,
+       platform,
+       CASE
+           WHEN stage_name = 0 THEN 0
+           WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+           ELSE cast(substr(stage_name, -3) AS float) / 10
+       END + 1 AS stage,
+             stage_name div 1000 + 1 AS mode,
+                            sum(CASE
+                                    WHEN win = 'True' THEN 1
+                                    ELSE 0
+                                END) AS win_count,
+                            count(*) AS play_count,
+                            event_date
+FROM empire_warriors_td.bigquery_stage_end
+WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+  AND app_id IN ('com.zitga.empire.warriors.td',
+                 'com.zitga.empire.warriors.td.tower.defense')
+  AND app_version >= '0.8.9'
+GROUP BY app_id,
+         platform,
+         CASE
+             WHEN stage_name = 0 THEN 0
+             WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+             ELSE cast(substr(stage_name, -3) AS float) / 10
+         END + 1,
+               stage_name div 1000 + 1,
+                              event_date
+ORDER BY event_date,
+         app_id,
+         platform,
+         stage,
+         mode;
+         
+----------------------------------------payment
+
+-- SL free
+-- select * from default.vietpm_sl_payment_fact;
+-- drop table default.vietpm_sl_payment_fact;
+-- create table default.vietpm_sl_payment_fact (platform string, product_id string, stage int, level int, mode int, day_after_install int, so_iap bigint,
+-- so_tien bigint) partitioned by (app_id string, event_date string);
+INSERT INTO TABLE default.vietpm_sl_payment_fact PARTITION(event_date, app_id)
+SELECT 
+       platform,
+       product_id,
+       stage,
+       level,
+       mode,
+       iap_count,
+       day_after_install,
+       count(*) AS so_iap,
+       sum(event_value_in_usd) AS so_tien,
+       app_id,
+       event_date
+FROM
+  (SELECT a.event_date,
+          a.advertising_id,
+          a.app_id,
+          a.platform,
+          a.product_id,
+          a.iap_count,
+          coalesce(b.stage, a.stage) AS stage,
+          coalesce(b.level, a.level) AS level,
+          coalesce(b.mode, a.mode) AS mode, -- b.stage,
+-- b.level,
+-- b.mode,
+a.day_after_install,
+          a.event_value_in_usd,
+          a.event_timestamp - b.event_timestamp AS ts_diff,
+          min(a.event_timestamp - b.event_timestamp) over(PARTITION BY a.advertising_id, a.app_id, a.platform) AS min_ts_diff
+   FROM
+     (SELECT event_timestamp,
+             event_date,
+             advertising_id,
+             app_id,
+             platform,
+             product_id,
+             iap_count,
+             cast(substr(stage, 2, 2) AS float) AS stage,
+             stage % 100 AS level,
+             stage div 10000 AS mode,
+                       datediff(from_unixtime(event_timestamp div 1000000, 'yyyy-MM-dd'), from_unixtime(min(first_open_timestamp) over(partition BY advertising_id) div 1000, 'yyyy-MM-dd')) AS day_after_install,
+                       event_value_in_usd
+      FROM default.bigquery_in_app_purchase
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id = 'com.zitga.ninja.stickman.legends'
+) a
+   LEFT JOIN
+     (SELECT event_timestamp,
+             advertising_id,
+             app_id,
+             platform,
+             cast(substr(stage_name, 2, 2) AS float) AS stage,
+             stage_name % 100 AS level,
+             stage_name div 10000 AS mode
+      FROM default.bigquery_stage_start
+      WHERE event_date BETWEEN date_add('${start_date}', -3) AND '${end_date}'
+        AND app_id = 'com.zitga.ninja.stickman.legends'
+) b ON a.advertising_id = b.advertising_id
+   AND a.app_id = b.app_id
+   AND a.platform = b.platform
+   AND a.event_timestamp >= b.event_timestamp) c
+WHERE ts_diff = min_ts_diff
+GROUP BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         level,
+         mode,
+         iap_count,
+         day_after_install
+ORDER BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         level,
+         mode,
+         iap_count,
+         day_after_install ;
+
+--SL paid
+
+INSERT INTO TABLE default.vietpm_sl_payment_fact PARTITION(event_date, app_id)
+SELECT 
+       platform,
+       product_id,
+       stage,
+       level,
+       mode,
+       iap_count,
+       day_after_install,
+       count(*) AS so_iap,
+       sum(event_value_in_usd) AS so_tien,
+       app_id,
+       event_date
+FROM
+  (SELECT a.event_date,
+          a.advertising_id,
+          a.app_id,
+          a.platform,
+          a.product_id,
+          a.iap_count,
+          coalesce(b.stage, a.stage) AS stage,
+          coalesce(b.level, a.level) AS level,
+          coalesce(b.mode, a.mode) AS mode, -- b.stage,
+-- b.level,
+-- b.mode,
+a.day_after_install,
+          a.event_value_in_usd,
+          a.event_timestamp - b.event_timestamp AS ts_diff,
+          min(a.event_timestamp - b.event_timestamp) over(PARTITION BY a.advertising_id, a.app_id, a.platform) AS min_ts_diff
+   FROM
+     (SELECT event_timestamp,
+             event_date,
+             advertising_id,
+             app_id,
+             platform,
+             product_id,
+             iap_count,
+             cast(substr(stage, 2, 2) AS float) AS stage,
+             stage % 100 AS level,
+             stage div 10000 AS mode,
+                       datediff(from_unixtime(event_timestamp div 1000000, 'yyyy-MM-dd'), from_unixtime(min(first_open_timestamp) over(partition BY advertising_id) div 1000, 'yyyy-MM-dd')) AS day_after_install,
+                       event_value_in_usd
+      FROM default.bigquery_in_app_purchase
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id = 'com.zitga.ninja.stickman.legends.shadow.wars'
+) a
+   LEFT JOIN
+     (SELECT event_timestamp,
+             advertising_id,
+             app_id,
+             platform,
+             cast(substr(stage_name, 2, 2) AS float) AS stage,
+             stage_name % 100 AS level,
+             stage_name div 10000 AS mode
+      FROM default.bigquery_stage_start
+      WHERE event_date BETWEEN date_add('${start_date}', -3) AND '${end_date}'
+        AND app_id = 'com.zitga.ninja.stickman.legends.shadow.wars'
+) b ON a.advertising_id = b.advertising_id
+   AND a.app_id = b.app_id
+   AND a.platform = b.platform
+   AND a.event_timestamp >= b.event_timestamp) c
+WHERE ts_diff = min_ts_diff
+GROUP BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         level,
+         mode,
+         iap_count,
+         day_after_install
+ORDER BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         level,
+         mode,
+         iap_count,
+         day_after_install ;
+
+-- TD
+INSERT INTO TABLE empire_warriors_td.vietpm_td_payment_fact PARTITION(event_date)
+SELECT app_id,
+       platform,
+       product_id,
+       stage,
+       mode,
+       iap_count,
+       day_after_install,
+       count(*) AS so_iap,
+       sum(event_value_in_usd) AS so_tien,
+       event_date
+FROM
+  (SELECT a.event_date,
+          a.advertising_id,
+          a.app_id,
+          a.platform,
+          a.product_id,
+          a.iap_count,
+          coalesce(b.stage, a.stage) AS stage,
+          coalesce(b.mode, a.mode) AS mode,
+          a.day_after_install,
+          a.event_value_in_usd,
+          a.event_timestamp - b.event_timestamp AS ts_diff,
+          min(a.event_timestamp - b.event_timestamp) over(PARTITION BY a.advertising_id, a.app_id, a.platform) AS min_ts_diff
+   FROM
+     (SELECT event_timestamp,
+             event_date,
+             advertising_id,
+             app_id,
+             platform,
+             iap_count,
+             CASE
+                 WHEN stage = 0 THEN 0
+                 WHEN stage < 100 THEN cast(substr(stage, -2) AS float) / 10
+                 ELSE cast(substr(stage, -3) AS float) / 10
+             END + 1 AS stage,
+                   stage div 1000 + 1 AS mode,
+                             product_id,
+                             datediff(from_unixtime(event_timestamp div 1000000, 'yyyy-MM-dd'), from_unixtime(min(first_open_timestamp) over(partition BY advertising_id) div 1000, 'yyyy-MM-dd')) AS day_after_install,
+                             event_value_in_usd
+      FROM empire_warriors_td.bigquery_in_app_purchase
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= '0.8.9') a
+   LEFT JOIN
+     (SELECT event_timestamp,
+             advertising_id,
+             app_id,
+             platform,
+             CASE
+                 WHEN stage_name = 0 THEN 0
+                 WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+                 ELSE cast(substr(stage_name, -3) AS float) / 10
+             END + 1 AS stage,
+                   stage_name div 1000 + 1 AS mode
+      FROM empire_warriors_td.bigquery_stage_start
+      WHERE event_date BETWEEN date_add('${start_date}', -3) AND '${end_date}'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= '0.8.9') b ON a.advertising_id = b.advertising_id
+   AND a.app_id = b.app_id
+   AND a.platform = b.platform
+   AND a.event_timestamp >= b.event_timestamp) c
+WHERE ts_diff = min_ts_diff
+GROUP BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         mode,
+         iap_count,
+         day_after_install
+ORDER BY event_date,
+         app_id,
+         platform,
+         product_id,
+         stage,
+         mode,
+         iap_count,
+         day_after_install ;
+
+----------------------------------------crash
+
+INSERT INTO TABLE default.vietpm_sl_td_crash_anr_fact partition(event_date)
+SELECT a.app_id,
+       a.platform,
+       a.total_session,
+       b.daily_crashes,
+       b.daily_anrs,
+       a.event_date
+FROM (
+        (SELECT event_date,
+                app_id,
+                platform,
+                count(*) AS total_session
+         FROM default.bigquery_session_start
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND app_id IN ('com.zitga.ninja.stickman.legends',
+                          'com.zitga.ninja.stickman.legends.shadow.wars')
+           AND platform = 'ANDROID'
+         GROUP BY event_date,
+                  app_id,
+                  platform)
+      UNION ALL
+        (SELECT event_date,
+                app_id,
+                platform,
+                count(*) AS total_session
+         FROM empire_warriors_td.bigquery_session_start
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND app_id IN ('com.zitga.empire.warriors.td',
+                          'com.zitga.empire.warriors.td.tower.defense')
+           AND platform = 'ANDROID'
+         GROUP BY event_date,
+                  app_id,
+                  platform)) a
+INNER JOIN
+  (SELECT event_date,
+          app_id,
+          upper(platform) AS platform,
+          daily_crashes,
+          daily_anrs
+   FROM default.playstore_crashes
+   WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+     AND app_id IN ('com.zitga.ninja.stickman.legends',
+                    'com.zitga.ninja.stickman.legends.shadow.wars',
+                    'com.zitga.empire.warriors.td',
+                    'com.zitga.empire.warriors.td.tower.defense') ) b ON a.event_date = b.event_date
+AND a.app_id = b.app_id
+AND a.platform = b.platform;
+
+----------------------------------------hack
+
+-------------------- TD
+
+INSERT INTO TABLE empire_warriors_td.vietpm_td_hack_resource_user partition(event_date)
+  (SELECT advertising_id,
+          item, 'earn' AS hack_type,
+                       event_date
+   FROM
+     (SELECT *,
+             percentile(cast(value AS bigint), 0.95) over(partition BY item, event_date) AS top_bound
+      FROM
+        (SELECT advertising_id,
+                item_brand AS item,
+                sum(value) AS value,
+                event_date
+         FROM empire_warriors_td.bigquery_earn_resource
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND item_category = 'money'
+           AND item_brand IN ('Gem',
+                              'Crystal',
+                              'ANCIENT_COIN')
+           AND SOURCE != 'iap'
+           AND app_id IN ('com.zitga.empire.warriors.td',
+                          'com.zitga.empire.warriors.td.tower.defense')
+           AND app_version >= '0.8.9'
+           AND value > 0
+         GROUP BY advertising_id,
+                  item_brand,
+                  event_date) a) b
+   WHERE value > top_bound )
+UNION
+  (SELECT advertising_id,
+          item, 'spend' AS hack_type,
+                        event_date
+   FROM
+     (SELECT *,
+             percentile(cast(value AS bigint), 0.95) over(partition BY item, event_date) AS top_bound
+      FROM
+        (SELECT advertising_id,
+                item_brand AS item,
+                sum(value) AS value,
+                event_date
+         FROM empire_warriors_td.bigquery_spend_resource
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND item_category = 'money'
+           AND item_brand IN ('Gem',
+                              'Crystal',
+                              'ANCIENT_COIN')
+           AND SOURCE != 'iap'
+           AND app_id IN ('com.zitga.empire.warriors.td',
+                          'com.zitga.empire.warriors.td.tower.defense')
+           AND app_version >= '0.8.9'
+           AND value > 0
+         GROUP BY advertising_id,
+                  item_brand,
+                  event_date) a) b
+   WHERE value > top_bound );
+
+-------------------- SL
+
+INSERT INTO TABLE default.vietpm_sl_hack_resource_user partition(event_date)
+  (SELECT advertising_id,
+          item, 'earn' AS hack_type,
+                       event_date
+   FROM
+     (SELECT *,
+             percentile(cast(value AS bigint), 0.9) over(partition BY item, event_date) AS top_bound
+      FROM
+        (SELECT advertising_id,
+                CASE
+                    WHEN item_id = 0 THEN 'Gold'
+                    WHEN item_id = 1 THEN 'Gem'
+                    WHEN item_id = 2 THEN 'Skip'
+                    WHEN item_id = 3 THEN 'Stamina'
+                END AS item,
+                sum(value) AS value,
+                event_date
+         FROM default.bigquery_earn_resource
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND item_brand = 'Resources'
+           AND item_category = 'money'
+           AND SOURCE != 'iap'
+           AND app_id IN ('com.zitga.ninja.stickman.legends',
+                          'com.zitga.ninja.stickman.legends.shadow.wars')
+           AND item_id IN (0,
+                           1,
+                           2,
+                           3)
+           AND value > 0
+         GROUP BY advertising_id,
+                  CASE
+                      WHEN item_id = 0 THEN 'Gold'
+                      WHEN item_id = 1 THEN 'Gem'
+                      WHEN item_id = 2 THEN 'Skip'
+                      WHEN item_id = 3 THEN 'Stamina'
+                  END,
+                  event_date) a) b
+   WHERE value > top_bound )
+UNION
+  (SELECT advertising_id,
+          item, 'spend' AS hack_type,
+                        event_date
+   FROM
+     (SELECT *,
+             percentile(cast(value AS bigint), 0.9) over(partition BY item, event_date) AS top_bound
+      FROM
+        (SELECT advertising_id,
+                CASE
+                    WHEN item_id = 0 THEN 'Gold'
+                    WHEN item_id = 1 THEN 'Gem'
+                    WHEN item_id = 2 THEN 'Skip'
+                    WHEN item_id = 3 THEN 'Stamina'
+                END AS item,
+                sum(value) AS value,
+                event_date
+         FROM default.bigquery_spend_resource
+         WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+           AND item_brand = 'Resources'
+           AND item_category = 'money'
+           AND SOURCE != 'iap'
+           AND app_id IN ('com.zitga.ninja.stickman.legends',
+                          'com.zitga.ninja.stickman.legends.shadow.wars')
+           AND item_id IN (0,
+                           1,
+                           2,
+                           3)
+           AND value > 0
+         GROUP BY advertising_id,
+                  CASE
+                      WHEN item_id = 0 THEN 'Gold'
+                      WHEN item_id = 1 THEN 'Gem'
+                      WHEN item_id = 2 THEN 'Skip'
+                      WHEN item_id = 3 THEN 'Stamina'
+                  END,
+                  event_date) a) b
+   WHERE value > top_bound );
+
+----------------------------------------hack user
+
+------ TD earn
+
+INSERT INTO TABLE empire_warriors_td.vietpm_td_earn_resource_user_fact PARTITION(event_date)
+SELECT a.advertising_id,
+       app_id,
+       platform,
+       source,
+       stage,
+       mode,
+       a.item,
+       character_level,
+       earn_count,
+       a.event_date
+FROM
+  (SELECT advertising_id,
+          app_id,
+          platform,
+          source,
+          CASE
+              WHEN stage = 0 THEN 0
+              WHEN stage < 100 THEN cast(substr(stage, -2) AS float) / 10
+              ELSE cast(substr(stage, -3) AS float) / 10
+          END + 1 AS stage,
+                stage div 1000 + 1 AS mode,
+                          item_brand AS item,
+                          character_level,
+                          sum(value) AS earn_count,
+                          event_date
+   FROM
+     ( SELECT advertising_id,
+              app_id,
+              platform,
+              source,
+              stage,
+              value,
+              event_date,
+              item_brand,
+              LEVEL AS character_level
+      FROM empire_warriors_td.bigquery_earn_resource a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND item_category = 'money'
+        AND item_brand IN ('Gem',
+                           'Crystal',
+                           'ANCIENT_COIN')
+        AND source != 'iap'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= '0.8.9'
+        AND value > 0 ) c
+   GROUP BY advertising_id,
+            event_date,
+            app_id,
+            platform,
+            source,
+            CASE
+                WHEN stage = 0 THEN 0
+                WHEN stage < 100 THEN cast(substr(stage, -2) AS float) / 10
+                ELSE cast(substr(stage, -3) AS float) / 10
+            END + 1,
+                  stage div 1000 + 1,
+                            item_brand,
+                            character_level) a
+WHERE NOT EXISTS
+    (SELECT 1
+     FROM empire_warriors_td.vietpm_td_hack_resource_user b
+     WHERE a.advertising_id = b.advertising_id
+       AND a.item = b.item
+       AND a.event_date = b.event_date
+       AND hack_type = 'earn')
+  AND a.advertising_id IS NOT NULL
+ORDER BY event_date,
+         advertising_id,
+         app_id,
+         platform,
+         source,
+         stage,
+         mode,
+         item,
+         character_level;
+
+----- TD spend
+
+INSERT INTO TABLE empire_warriors_td.vietpm_td_spend_resource_user_fact PARTITION(event_date)
+SELECT a.advertising_id,
+       app_id,
+       platform,
+       source,
+       stage,
+       mode,
+       a.item,
+       character_level,
+       spend_count,
+       a.event_date
+FROM
+  (SELECT advertising_id,
+          app_id,
+          platform,
+          source,
+          CASE
+              WHEN stage = 0 THEN 0
+              WHEN stage < 100 THEN cast(substr(stage, -2) AS float) / 10
+              ELSE cast(substr(stage, -3) AS float) / 10
+          END + 1 AS stage,
+                stage div 1000 + 1 AS mode,
+                          item_brand AS item,
+                          character_level,
+                          sum(value) AS spend_count,
+                          event_date
+   FROM
+     (SELECT advertising_id,
+             app_id,
+             platform,
+             source,
+             stage,
+             value,
+             event_date,
+             item_brand,
+             LEVEL AS character_level
+      FROM empire_warriors_td.bigquery_spend_resource a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND item_category = 'money'
+        AND item_brand IN ('Gem',
+                           'Crystal',
+                           'ANCIENT_COIN')
+        AND source != 'iap'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= '0.8.9'
+        AND value > 0 ) c
+   GROUP BY advertising_id,
+            event_date,
+            app_id,
+            platform,
+            source,
+            CASE
+                WHEN stage = 0 THEN 0
+                WHEN stage < 100 THEN cast(substr(stage, -2) AS float) / 10
+                ELSE cast(substr(stage, -3) AS float) / 10
+            END + 1,
+                  stage div 1000 + 1,
+                            item_brand,
+                            character_level) a -- LEFT JOIN (select advertising_id, item, event_date from
+-- empire_warriors_td.vietpm_td_hack_test where event_date between '${start_date}' and '${end_date}' and hack_type = 'earn') b
+-- on
+-- a.advertising_id = b.advertising_id
+-- and a.item = b.item
+-- and a.event_date = b.event_date
+
+WHERE NOT EXISTS
+    (SELECT 1
+     FROM empire_warriors_td.vietpm_td_hack_resource_user b
+     WHERE a.advertising_id = b.advertising_id
+       AND a.item = b.item
+       AND a.event_date = b.event_date
+       AND hack_type = 'spend')
+  AND a.advertising_id IS NOT NULL
+ORDER BY event_date,
+         advertising_id,
+         app_id,
+         platform,
+         source,
+         stage,
+         mode,
+         item,
+         character_level;
+
+---------------- SL earn
+
+INSERT INTO TABLE default.vietpm_sl_earn_resource_user_fact PARTITION(event_date)
+SELECT a.advertising_id,
+       app_id,
+       platform,
+       source,
+       stage,
+       LEVEL,
+       mode,
+       a.item,
+       character_level,
+       earn_count,
+       a.event_date
+FROM
+  (SELECT advertising_id,
+          app_id,
+          platform,
+          source,
+          cast(substr(stage, 2, 2) AS float) AS stage,
+          stage % 100 AS LEVEL,
+          stage div 10000 AS mode,
+                    item,
+                    character_level,
+                    sum(value) AS earn_count,
+                    event_date
+   FROM
+     (SELECT advertising_id,
+             app_id,
+             platform,
+             source,
+             stage,
+             value,
+             event_date,
+             CASE
+                 WHEN item_id = 0 THEN 'Gold'
+                 WHEN item_id = 1 THEN 'Gem'
+                 WHEN item_id = 2 THEN 'Skip'
+                 WHEN item_id = 3 THEN 'Stamina'
+             END AS item,
+             LEVEL AS character_level
+      FROM default.bigquery_earn_resource a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND item_brand = 'Resources'
+        AND item_category = 'money'
+        AND source != 'iap'
+        AND app_id IN ('com.zitga.ninja.stickman.legends',
+                       'com.zitga.ninja.stickman.legends.shadow.wars')
+        AND item_id IN (0,
+                        1,
+                        2,
+                        3)
+        AND value > 0 ) c
+   GROUP BY advertising_id,
+            event_date,
+            app_id,
+            platform,
+            source,
+            cast(substr(stage, 2, 2) AS float),
+            stage % 100,
+            stage div 10000,
+                      item,
+                      character_level) a
+WHERE NOT EXISTS
+    (SELECT 1
+     FROM default.vietpm_sl_hack_resource_user b
+     WHERE a.advertising_id = b.advertising_id
+       AND a.item = b.item
+       AND a.event_date = b.event_date
+       AND hack_type = 'earn')
+  AND a.advertising_id IS NOT NULL
+ORDER BY event_date,
+         advertising_id,
+         app_id,
+         platform,
+         source,
+         stage,
+         mode,
+         item,
+         character_level;
+
+----- SL spend
+
+INSERT INTO TABLE default.vietpm_sl_spend_resource_user_fact PARTITION(event_date)
+SELECT a.advertising_id,
+       app_id,
+       platform,
+       source,
+       stage,
+       LEVEL,
+       mode,
+       a.item,
+       character_level,
+       spend_count,
+       a.event_date
+FROM
+  (SELECT advertising_id,
+          app_id,
+          platform,
+          source,
+          cast(substr(stage, 2, 2) AS float) AS stage,
+          stage % 100 AS LEVEL,
+          stage div 10000 AS mode,
+                    item,
+                    character_level,
+                    sum(value) AS spend_count,
+                    event_date
+   FROM
+     (SELECT advertising_id,
+             app_id,
+             platform,
+             source,
+             stage,
+             value,
+             event_date,
+             CASE
+                 WHEN item_id = 0 THEN 'Gold'
+                 WHEN item_id = 1 THEN 'Gem'
+                 WHEN item_id = 2 THEN 'Skip'
+                 WHEN item_id = 3 THEN 'Stamina'
+             END AS item,
+             LEVEL AS character_level
+      FROM default.bigquery_spend_resource a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND item_brand = 'Resources'
+        AND item_category = 'money'
+        AND source != 'iap'
+        AND app_id IN ('com.zitga.ninja.stickman.legends',
+                       'com.zitga.ninja.stickman.legends.shadow.wars')
+        AND item_id IN (0,
+                        1,
+                        2,
+                        3)
+        AND value > 0 ) c
+   GROUP BY advertising_id,
+            event_date,
+            app_id,
+            platform,
+            source,
+            cast(substr(stage, 2, 2) AS float),
+            stage % 100,
+            stage div 10000,
+                      item,
+                      character_level) a
+WHERE NOT EXISTS
+    (SELECT 1
+     FROM default.vietpm_sl_hack_resource_user b
+     WHERE a.advertising_id = b.advertising_id
+       AND a.item = b.item
+       AND a.event_date = b.event_date
+       AND hack_type = 'spend')
+  AND a.advertising_id IS NOT NULL
+ORDER BY event_date,
+         advertising_id,
+         app_id,
+         platform,
+         source,
+         stage,
+         mode,
+         item,
+         character_level;
+
+Q2, Test SQL All
+---ingame 
+select * from
+(select 'temp' as table_type, 'default.vietpm_sl_ingame_fact' as table_name, max(event_date) as update_date from default.vietpm_sl_ingame_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'temp' as table_type, 'empire_warriors_td.vietpm_td_ingame_fact', max(event_date) from empire_warriors_td.vietpm_td_ingame_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+---payment
+select 'temp' as table_type, 'default.vietpm_sl_payment_fact (free)', max(event_date) from default.vietpm_sl_payment_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__' and app_id = 'com.zitga.ninja.stickman.legends'
+union all
+select 'temp' as table_type, 'default.vietpm_sl_payment_fact (paid)', max(event_date) from default.vietpm_sl_payment_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__' and app_id = 'com.zitga.ninja.stickman.legends.shadow.wars'
+union all
+select 'temp' as table_type, 'empire_warriors_td.vietpm_td_payment_fact', max(event_date) from empire_warriors_td.vietpm_td_payment_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+---crash
+select 'temp' as table_type, 'default.vietpm_sl_td_crash_anr_fact', max(event_date) from default.vietpm_sl_td_crash_anr_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+---hack
+select 'temp' as table_type, 'default.vietpm_sl_hack_resource_user', max(event_date) from default.vietpm_sl_hack_resource_user 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'temp' as table_type, 'empire_warriors_td.vietpm_td_hack_resource_user', max(event_date) from empire_warriors_td.vietpm_td_hack_resource_user 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+---hack user
+select 'temp' as table_type,  'default.vietpm_sl_earn_resource_user_fact', max(event_date) from default.vietpm_sl_earn_resource_user_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'temp' as table_type,  'default.vietpm_sl_spend_resource_user_fact', max(event_date) from default.vietpm_sl_spend_resource_user_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'temp' as table_type, 'empire_warriors_td.vietpm_td_earn_resource_user_fact', max(event_date) from empire_warriors_td.vietpm_td_earn_resource_user_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'temp' as table_type, 'empire_warriors_td.vietpm_td_spend_resource_user_fact', max(event_date) from empire_warriors_td.vietpm_td_spend_resource_user_fact 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+---test event_date cac bang da update chua
+select 'fb' as table_type, 'default.bigquery_in_app_purchase', max(event_date) from default.bigquery_in_app_purchase 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_in_app_purchase', max(event_date) from empire_warriors_td.bigquery_in_app_purchase 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'default.bigquery_spend_resource', max(event_date) from default.bigquery_spend_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_spend_resource', max(event_date) from empire_warriors_td.bigquery_spend_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'default.bigquery_earn_resource', max(event_date) from default.bigquery_earn_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_earn_resource', max(event_date) from empire_warriors_td.bigquery_earn_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'default.bigquery_buy_resource', max(event_date) from default.bigquery_buy_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_buy_resource', max(event_date) from empire_warriors_td.bigquery_buy_resource 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'default.bigquery_stage_start', max(event_date) from default.bigquery_stage_start 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_stage_start', max(event_date) from empire_warriors_td.bigquery_stage_start 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'default.bigquery_stage_end', max(event_date) from default.bigquery_stage_end 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'fb' as table_type, 'empire_warriors_td.bigquery_stage_end', max(event_date) from empire_warriors_td.bigquery_stage_end 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'playstore' as table_type, 'default.playstore_crashes', max(event_date) from default.playstore_crashes 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'af' as table_type, 'default.appsflyer_report_geo_by_date', max(event_date) from default.appsflyer_report_geo_by_date 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'af' as table_type, 'default.appsflyer_report_install', max(event_date) from default.appsflyer_report_install
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'ir' as table_type, 'default.iron_source_ad_report', max(event_date) from default.iron_source_ad_report
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__'
+union all
+select 'ir' as table_type, 'default.iron_source_ad_revenue_report', max(event_date) from default.iron_source_ad_revenue_report 
+where event_date >= '${start_date}' and event_date != '__HIVE_DEFAULT_PARTITION__') a
+order by table_type, update_date desc, table_name;
+
+
+Q3, MKT dash
+WITH fb_total AS
+    (
+    (SELECT 
+        event_date,
+        app_id,
+        platform,
+        country,
+        advertising_id,
+        sum(event_value_in_usd) AS iap_revenue
+    FROM 
+        default.bigquery_in_app_purchase
+    WHERE 
+        event_date >= '2020-02-04'
+        AND app_id IN ('com.zitga.ninja.stickman.legends', 'com.zitga.ninja.stickman.legends.shadow.wars')
+    GROUP BY 
+        event_date,
+        app_id,
+        platform,
+        country,
+        advertising_id)
+    UNION ALL
+    (SELECT 
+        event_date,
+        app_id,
+        platform,
+        country,
+        advertising_id,
+        sum(event_value_in_usd) AS iap_revenue
+    FROM 
+        empire_warriors_td.bigquery_in_app_purchase
+    WHERE 
+        event_date >= '2020-02-04'
+        AND app_id IN ('com.zitga.empire.warriors.td', 'com.zitga.empire.warriors.td.tower.defense')
+    GROUP BY 
+        event_date,
+        app_id,
+        platform,
+        country,
+        advertising_id)),
+fb_user as (
+    select
+        fb_total.*,
+        c.country_code
+    from
+        fb_total
+    left join default.vietpm_country_code c
+        on fb_total.country = c.fb_country),
+af_user AS (
+    SELECT 
+        *
+    FROM
+        (SELECT 
+            advertising_id,
+            case 
+                when app_id = 'id1186523572' then 'com.zitga.ninja.stickman.legends'
+                when app_id = 'id1329443393' then 'com.zitga.empire.warriors.td'
+                else app_id
+            end as app_id,
+            upper(platform) as platform,
+            coalesce(media_source, 'Organic') as media_source,
+            coalesce(campaign, 'None') as campaign,
+            country_code,
+            row_number() over(partition BY advertising_id, app_id, platform ORDER BY event_date DESC) AS row_num
+        FROM 
+            default.appsflyer_report_install
+        WHERE 
+            advertising_id IS NOT NULL
+            and app_id in ('com.zitga.ninja.stickman.legends', 'com.zitga.ninja.stickman.legends.shadow.wars', 'id1186523572',
+            'com.zitga.empire.warriors.td', 'com.zitga.empire.warriors.td.tower.defense', 'id1329443393') ) a
+    WHERE 
+        row_num = 1),
+ir_user as (
+    select
+        event_date,
+        app_id,
+        platform,
+        advertising_id,
+        sum(revenue) AS ads_revenue
+    from
+        default.iron_source_ad_revenue_report
+    where
+        event_date >= '2020-02-04'
+        and app_id in ('com.zitga.empire.warriors.td', 'com.zitga.empire.warriors.td.tower.defense',
+        'com.zitga.ninja.stickman.legends', 'com.zitga.ninja.stickman.legends.shadow.wars')
+    group by
+        event_date,
+        app_id,
+        platform,
+        advertising_id),
+fb as    
+    (select
+        event_date,
+        app_id,
+        platform,
+        country_code,
+        media_source,
+        campaign,
+        sum(iap_revenue) AS iap_revenue
+    from
+        (select
+            fb_user.*,
+            af_user.media_source,
+            af_user.campaign
+        from
+            fb_user
+        left join af_user
+            on fb_user.advertising_id = af_user.advertising_id
+            and fb_user.app_id = af_user.app_id
+            and fb_user.platform = af_user.platform) b
+    group by
+        event_date,
+        app_id,
+        platform,
+        country_code,
+        media_source,
+        campaign),
+ir as    
+    (select
+        event_date,
+        app_id,
+        platform,
+        country_code,
+        media_source,
+        campaign,
+        sum(ads_revenue) AS ads_revenue
+    from
+        (select
+            ir_user.*,
+            af_user.media_source,
+            af_user.campaign,
+            af_user.country_code
+        from
+            ir_user
+        left join af_user
+            on ir_user.advertising_id = af_user.advertising_id
+            and ir_user.app_id = af_user.app_id
+            and ir_user.platform = af_user.platform) c
+    group by
+        event_date,
+        app_id,
+        platform,
+        country_code,
+        media_source,
+        campaign),
+af as
+    (select
+        app_id,
+        upper(platform) as platform,
+        event_date,
+        case when country_code = "N/A" then "None" else country_code end as country_code,
+        media_source,
+        campaign,
+        sum(impressions) as impressions,
+        sum(clicks) as clicks,
+        sum(installs) as installs,
+        sum(total_cost) as total_cost
+    from
+        default.appsflyer_report_geo_by_date
+    where
+        event_date >= '2020-02-04'
+        and app_id in ('com.zitga.empire.warriors.td',
+        'com.zitga.empire.warriors.td.tower.defense',
+        'com.zitga.ninja.stickman.legends', 
+        'com.zitga.ninja.stickman.legends.shadow.wars')
+    group by
+        app_id,
+        upper(platform),
+        event_date,
+        case when country_code = "N/A" then "None" else country_code end,
+        media_source,
+        campaign)
+select
+    a.*,
+    b.country
+from
+    (select 
+        coalesce(af.app_id, fb.app_id, ir.app_id) as app_id,
+        coalesce(af.platform, fb.platform, ir.platform) as platform,
+        coalesce(af.event_date, fb.event_date, ir.event_date) as event_date,
+        coalesce(af.country_code, fb.country_code, ir.country_code) as country_code,
+        case 
+            when coalesce(af.media_source, fb.media_source, ir.media_source) is null then "None" 
+            else coalesce(af.media_source, fb.media_source, ir.media_source) 
+        end as media_source,
+        case 
+            when coalesce(af.campaign, fb.campaign, ir.campaign) is null then "None" 
+            else coalesce(af.campaign, fb.campaign, ir.campaign) 
+        end as campaign,
+        coalesce(impressions, 0) as impressions,
+        coalesce(clicks, 0) as clicks,
+        coalesce(installs, 0) as installs,
+        coalesce(total_cost, 0) as total_cost,
+        coalesce(iap_revenue, 0) as iap_revenue,
+        coalesce(ads_revenue, 0) as ads_revenue
+    from
+        af 
+    full join 
+        fb on 
+            af.app_id = fb.app_id
+            and af.platform = fb.platform
+            and af.event_date = fb.event_date
+            and af.country_code = fb.country_code
+            and af.media_source = fb.media_source
+            and af.campaign = fb.campaign
+    full join 
+        ir on 
+            af.app_id = ir.app_id
+            and af.platform = ir.platform
+            and af.event_date = ir.event_date
+            and af.country_code = ir.country_code
+            and af.media_source = ir.media_source
+            and af.campaign = ir.campaign) a
+left join default.vietpm_country_code b
+    on a.country_code = b.country_code;
+    
+
+
+Q4, Date table
+with dates as (
+select date_add("${start_day}", a.pos) as d
+from (select posexplode(split(repeat("o", datediff("${end_day}", "${start_day}")), "o"))) a
+)
+select
+    d as d
+  , year(d) as year
+  , month(d) as month
+  , day(d) as day
+  , date_format(d, 'u') as daynumber_of_week
+  , date_format(d, 'EEEE') as dayname_of_week
+  , date_format(d, 'D') as daynumber_of_year
+ 
+from dates
+order by d;
+ 
+
+Q5, stage complete
+------------------------- SL
+
+SELECT max(first_timestamp)
+FROM ${table_sl};
+
+
+SELECT *
+FROM ${table_sl} -- where advertising_id = \"000005f8-527d-4251-82a0-1289a61dcd6b\" order by advertising_id, app_id, platform, stage, level, mode, type_timestamp
+;
+
+
+DROP TABLE ${table_sl};
+
+
+CREATE TABLE ${table_sl} (advertising_id string,
+                          stage int, LEVEL int, MODE int, app_id string,
+                                                          platform string,
+                                                          first_timestamp bigint) partitioned BY (type_timestamp string);
+
+--insert first_play
+
+INSERT INTO TABLE ${table_sl} partition(type_timestamp)
+  (SELECT *
+   FROM
+     (SELECT advertising_id,
+             cast(substr(stage_name, 2, 2) AS float) AS stage,
+             stage_name % 100 AS LEVEL,
+             stage_name div 10000 AS MODE,
+                            app_id,
+                            platform,
+                            min(event_timestamp) AS first_timestamp, \"first_play\" AS type_timestamp
+      FROM default.bigquery_stage_start a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id IN ('com.zitga.ninja.stickman.legends',
+                       'com.zitga.ninja.stickman.legends.shadow.wars')
+        AND stage_name div 10000 = 1
+        AND advertising_id IS NOT NULL
+        AND first_open_timestamp >= 1559322000000
+      GROUP BY app_id,
+               platform,
+               advertising_id,
+               cast(substr(stage_name, 2, 2) AS float),
+               stage_name % 100,
+               stage_name div 10000) a
+   WHERE NOT EXISTS
+       (SELECT 1
+        FROM ${table_sl} b
+        WHERE b.type_timestamp = \"first_play\"
+          AND a.advertising_id = b.advertising_id
+          AND a.stage = b.stage
+          AND a.level = b.level
+          AND a.mode = b.mode
+          AND a.app_id = b.app_id
+          AND a.platform = b.platform) )--insert first_win
+UNION
+  (SELECT *
+   FROM
+     (SELECT advertising_id,
+             cast(substr(stage_name, 2, 2) AS float) AS stage,
+             stage_name % 100 AS LEVEL,
+             stage_name div 10000 AS MODE,
+                            app_id,
+                            platform,
+                            min(event_timestamp) AS first_timestamp, \"first_win\" AS type_timestamp
+      FROM default.bigquery_stage_end
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id IN ('com.zitga.ninja.stickman.legends',
+                       'com.zitga.ninja.stickman.legends.shadow.wars')
+        AND stage_name div 10000 = 1
+        AND advertising_id IS NOT NULL
+        AND first_open_timestamp >= 1559322000000
+        AND win = \"TRUE\"
+      GROUP BY app_id,
+               platform,
+               advertising_id,
+               cast(substr(stage_name, 2, 2) AS float),
+               stage_name % 100,
+               stage_name div 10000) a
+   WHERE NOT EXISTS
+       (SELECT 1
+        FROM ${table_sl} b
+        WHERE b.type_timestamp = \"first_win\"
+          AND a.advertising_id = b.advertising_id
+          AND a.stage = b.stage
+          AND a.level = b.level
+          AND a.mode = b.mode
+          AND a.app_id = b.app_id
+          AND a.platform = b.platform) );
+
+------------------------- TD
+
+SELECT max(first_timestamp)
+FROM ${table_td};
+
+
+DROP TABLE ${table_td};
+
+
+CREATE TABLE ${table_td} (advertising_id string,
+                          stage int, MODE int, app_id string,
+                                               platform string,
+                                               first_timestamp bigint) partitioned BY (type_timestamp string);
+
+--insert first_play
+
+INSERT INTO TABLE ${table_td} partition(type_timestamp)
+  (SELECT *
+   FROM
+     (SELECT advertising_id,
+             CASE
+                 WHEN stage_name = 0 THEN 0
+                 WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+                 ELSE cast(substr(stage_name, -3) AS float) / 10
+             END + 1 AS stage,
+                   stage_name div 1000 + 1 AS MODE,
+                                  app_id,
+                                  platform,
+                                  min(event_timestamp) AS first_timestamp, \"first_play\" AS type_timestamp
+      FROM empire_warriors_td.bigquery_stage_start a
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= \"0.8.9\"
+        AND stage_name div 1000 + 1 = 1
+        AND advertising_id IS NOT NULL
+        AND first_open_timestamp >= 1559322000000
+      GROUP BY app_id,
+               platform,
+               advertising_id,
+               CASE
+                   WHEN stage_name = 0 THEN 0
+                   WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+                   ELSE cast(substr(stage_name, -3) AS float) / 10
+               END + 1,
+                     stage_name div 1000 + 1) a
+   WHERE NOT EXISTS
+       (SELECT 1
+        FROM ${table_td} b
+        WHERE b.type_timestamp = \"first_play\"
+          AND a.advertising_id = b.advertising_id
+          AND a.stage = b.stage
+          AND a.mode = b.mode
+          AND a.app_id = b.app_id
+          AND a.platform = b.platform) )--insert first_win
+UNION
+  (SELECT *
+   FROM
+     (SELECT advertising_id,
+             CASE
+                 WHEN stage_name = 0 THEN 0
+                 WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+                 ELSE cast(substr(stage_name, -3) AS float) / 10
+             END + 1 AS stage,
+                   stage_name div 1000 + 1 AS MODE,
+                                  app_id,
+                                  platform,
+                                  min(event_timestamp) AS first_timestamp, \"first_win\" AS type_timestamp
+      FROM empire_warriors_td.bigquery_stage_end
+      WHERE event_date BETWEEN '${start_date}' AND '${end_date}'
+        AND app_id IN ('com.zitga.empire.warriors.td',
+                       'com.zitga.empire.warriors.td.tower.defense')
+        AND app_version >= \"0.8.9\"
+        AND stage_name div 1000 + 1 = 1
+        AND advertising_id IS NOT NULL
+        AND first_open_timestamp >= 1559322000000
+        AND win = \"TRUE\"
+      GROUP BY app_id,
+               platform,
+               advertising_id,
+               CASE
+                   WHEN stage_name = 0 THEN 0
+                   WHEN stage_name < 100 THEN cast(substr(stage_name, -2) AS float) / 10
+                   ELSE cast(substr(stage_name, -3) AS float) / 10
+               END + 1,
+                     stage_name div 1000 + 1) a
+   WHERE NOT EXISTS
+       (SELECT 1
+        FROM ${table_td} b
+        WHERE b.type_timestamp = \"first_win\"
+          AND a.advertising_id = b.advertising_id
+          AND a.stage = b.stage
+          AND a.mode = b.mode
+          AND a.app_id = b.app_id
+          AND a.platform = b.platform) );
+
+---------------------------- stage complete table
+
+SELECT from_unixtime(cast(1576342799712016 / 1000000 AS bigint), 'yyyy-MM-dd');
+
+
+SELECT max(event_date)
+FROM ${TABLE};
+
+
+DROP TABLE ${TABLE};
+
+
+CREATE TABLE ${TABLE} (stage int, LEVEL int, MODE int, platform string,
+                                                       complete_time DOUBLE) partitioned BY (event_date string,
+                                                                                             app_id string);
+
+
+INSERT INTO ${TABLE} partition(event_date, app_id)
+  (SELECT c.stage,
+          NULL AS LEVEL,
+          c.mode,
+          c.platform,
+          avg(c.complete_time) / 1000000 / 60 AS complete_time,
+          d.event_date,
+          c.app_id
+   FROM
+     (SELECT d AS event_date
+      FROM default.vietpm_date_dim
+      WHERE d BETWEEN '${start_date}' AND '${end_date}') d
+   LEFT JOIN
+     (SELECT a.advertising_id,
+             a.stage,
+             a.mode,
+             a.app_id,
+             a.platform,
+             a.first_timestamp,
+             from_unixtime(cast(a.first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') AS event_date,
+             b.first_timestamp - a.first_timestamp AS complete_time
+      FROM
+        (SELECT *
+         FROM empire_warriors_td.vietpm_td_stage_complete_fact
+         WHERE type_timestamp = \"first_play\"
+           AND from_unixtime(cast(first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') <= '${end_date}') a
+      INNER JOIN
+        (SELECT *
+         FROM empire_warriors_td.vietpm_td_stage_complete_fact
+         WHERE type_timestamp = \"first_win\"
+           AND from_unixtime(cast(first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') <= '${end_date}') b ON a.advertising_id = b.advertising_id
+      AND a.stage = b.stage
+      AND a.mode = b.mode
+      AND a.app_id = b.app_id
+      AND a.platform = b.platform) c ON d.event_date >= c.event_date
+   GROUP BY c.stage,
+            c.mode,
+            c.platform,
+            d.event_date,
+            c.app_id
+   ORDER BY stage,
+            MODE,
+            platform,
+            event_date,
+            app_id)
+UNION ALL
+  (SELECT c.stage,
+          c.level,
+          c.mode,
+          c.platform,
+          avg(c.complete_time) / 1000000 / 60 AS complete_time,
+          d.event_date,
+          c.app_id
+   FROM
+     (SELECT d AS event_date
+      FROM default.vietpm_date_dim
+      WHERE d BETWEEN '${start_date}' AND '${end_date}') d
+   LEFT JOIN
+     (SELECT a.advertising_id,
+             a.stage,
+             a.level,
+             a.mode,
+             a.app_id,
+             a.platform,
+             a.first_timestamp,
+             from_unixtime(cast(a.first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') AS event_date,
+             b.first_timestamp - a.first_timestamp AS complete_time
+      FROM
+        (SELECT *
+         FROM default.vietpm_sl_stage_complete_fact
+         WHERE type_timestamp = \"first_play\"
+           AND from_unixtime(cast(first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') <= '${end_date}') a
+      INNER JOIN
+        (SELECT *
+         FROM default.vietpm_sl_stage_complete_fact
+         WHERE type_timestamp = \"first_win\"
+           AND from_unixtime(cast(first_timestamp / 1000000 AS bigint), 'yyyy-MM-dd') <= '${end_date}') b ON a.advertising_id = b.advertising_id
+      AND a.stage = b.stage
+      AND a.level = b.level
+      AND a.mode = b.mode
+      AND a.app_id = b.app_id
+      AND a.platform = b.platform) c ON d.event_date >= c.event_date
+   GROUP BY c.stage,
+            c.level,
+            c.mode,
+            c.platform,
+            d.event_date,
+            c.app_id
+   ORDER BY stage,
+            LEVEL,
+            MODE,
+            platform,
+            event_date,
+            app_id)
